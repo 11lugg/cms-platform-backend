@@ -14,6 +14,8 @@ const xss = require('xss-clean');
 const AppError = require('./utils/AppError');
 const fs = require('fs');
 
+const db = require('./models');
+
 const app = express();
 
 // Set the port from environment variables or default to 3000
@@ -59,11 +61,40 @@ app.get('/', (req, res) => {
   res.send('Welcome to the CMS Platform Backend!');
 });
 
+// Example route that triggers an error
+app.get('/error', (req, res, next) => {
+  next(new AppError('This is a custom error message', 400));
+});
+
+// Route to test database interaction
+app.get('/test-db', async (req, res, next) => {
+  try {
+    const newUser = await db.User.create({
+      // Intentionally omit required fields or provide invalid data
+      email: 'invalid-email', // Invalid email format
+      password: 'short', // Password less than 8 characters
+      // Omit 'username' to trigger 'Username is required' validation error
+    });
+    res.json(newUser);
+  } catch (error) {
+    next(error); // Pass the error to the global error handler
+  }
+});
+
 // Global Error Handler
 
 // Disable the no-unused-vars rule for the next line
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  // Handle Sequelize validation errors
+  if (err.name === 'SequelizeValidationError') {
+    const messages = err.errors.map(e => e.message);
+    return res.status(400).json({
+      status: 'fail',
+      errors: messages,
+    });
+  }
+
   // Set default values
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
@@ -85,12 +116,17 @@ app.use((err, req, res, next) => {
   }
 });
 
-// Example route that triggers an error
-app.get('/error', (req, res, next) => {
-  next(new AppError('This is a custom error message', 400));
-});
+// Start the server after the database connection is established
+db.sequelize
+  .authenticate()
+  .then(() => {
+    console.log('Database connection has been established successfully.');
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+    // Start the server after the DB connection is successful
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('Unable to connect to the database:', err);
+  });

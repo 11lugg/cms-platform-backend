@@ -10,3 +10,6 @@ logs/
 
 # Others
 .DS_Store
+
+# Sequelize config
+config/config.js
