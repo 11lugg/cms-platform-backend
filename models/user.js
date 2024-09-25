@@ -7,7 +7,7 @@ module.exports = (sequelize, DataTypes) => {
   class User extends Model {
     // Define associations here if needed
     static associate(models) {
-      // Define associations here if needed
+      User.hasMany(models.Content, { foreignKey: 'authorId', as: 'contents' });
     }
 
     // Instance method to compare passwords (from previous steps)

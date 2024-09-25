@@ -81,6 +81,45 @@ app.get('/test-db', async (req, res, next) => {
   }
 });
 
+// Create a new template
+app.post('/templates', async (req, res, next) => {
+  try {
+    const template = await db.Template.create(req.body);
+    res.status(201).json(template);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create new content
+app.post('/contents', async (req, res, next) => {
+  try {
+    const content = await db.Content.create(req.body);
+    res.status(201).json(content);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get all contents with associated author and template
+app.get('/contents', async (req, res, next) => {
+  try {
+    const contents = await db.Content.findAll({
+      include: [
+        {
+          model: db.User,
+          as: 'author',
+          attributes: ['id', 'username', 'email'],
+        },
+        { model: db.Template },
+      ],
+    });
+    res.json(contents);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Global Error Handler
 
 // Disable the no-unused-vars rule for the next line
