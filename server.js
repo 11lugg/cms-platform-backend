@@ -13,6 +13,8 @@ const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const AppError = require('./utils/AppError');
 const fs = require('fs');
+const authRouter = require('./routes/auth');
+const auth = require('./middleware/auth');
 
 const db = require('./models');
 
@@ -56,6 +58,9 @@ app.use(mongoSanitize());
 // Data sanitization against XSS
 app.use(xss());
 
+// Use the auth routes
+app.use('/auth', authRouter);
+
 // Basic route
 app.get('/', (req, res) => {
   res.send('Welcome to the CMS Platform Backend!');
@@ -92,9 +97,12 @@ app.post('/templates', async (req, res, next) => {
 });
 
 // Create new content
-app.post('/contents', async (req, res, next) => {
+app.post('/contents', auth(), async (req, res, next) => {
   try {
-    const content = await db.Content.create(req.body);
+    const content = await db.Content.create({
+      ...req.body,
+      authorId: req.user.id,
+    });
     res.status(201).json(content);
   } catch (error) {
     next(error);
@@ -132,6 +140,11 @@ app.use((err, req, res, next) => {
       status: 'fail',
       errors: messages,
     });
+  }
+
+  // Handle JWT errors
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).json({ msg: 'Invalid token' });
   }
 
   // Set default values
