@@ -14,7 +14,11 @@ const xss = require('xss-clean');
 const AppError = require('./utils/AppError');
 const fs = require('fs');
 const authRouter = require('./routes/auth');
-const auth = require('./middleware/auth');
+const templatesRouter = require('./routes/template');
+const contentsRouter = require('./routes/content');
+
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
 
 const db = require('./models');
 
@@ -46,6 +50,8 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 // Parse incoming JSON requests
 app.use(express.json());
 
@@ -62,6 +68,22 @@ app.use(xss());
 app.use('/auth', authRouter);
 
 // Basic route
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: Welcome message
+ *     tags: [General]
+ *     responses:
+ *       200:
+ *         description: Welcome message
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *               example: Welcome to the CMS Platform Backend!
+ */
 app.get('/', (req, res) => {
   res.send('Welcome to the CMS Platform Backend!');
 });
@@ -86,47 +108,8 @@ app.get('/test-db', async (req, res, next) => {
   }
 });
 
-// Create a new template
-app.post('/templates', async (req, res, next) => {
-  try {
-    const template = await db.Template.create(req.body);
-    res.status(201).json(template);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Create new content
-app.post('/contents', auth(), async (req, res, next) => {
-  try {
-    const content = await db.Content.create({
-      ...req.body,
-      authorId: req.user.id,
-    });
-    res.status(201).json(content);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Get all contents with associated author and template
-app.get('/contents', async (req, res, next) => {
-  try {
-    const contents = await db.Content.findAll({
-      include: [
-        {
-          model: db.User,
-          as: 'author',
-          attributes: ['id', 'username', 'email'],
-        },
-        { model: db.Template },
-      ],
-    });
-    res.json(contents);
-  } catch (error) {
-    next(error);
-  }
-});
+app.use('/templates', templatesRouter);
+app.use('/contents', contentsRouter);
 
 // Global Error Handler
 
@@ -141,10 +124,20 @@ app.use((err, req, res, next) => {
       errors: messages,
     });
   }
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({ msg: 'Invalid token' });
+  }
 
-  // Handle JWT errors
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({ msg: 'Token has expired' });
+  }
+
   if (err.name === 'UnauthorizedError') {
     return res.status(401).json({ msg: 'Invalid token' });
+  }
+
+  if (err.status === 403) {
+    return res.status(403).json({ msg: 'Forbidden' });
   }
 
   // Set default values
