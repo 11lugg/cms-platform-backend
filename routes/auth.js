@@ -1,5 +1,3 @@
-// routes/auth.js
-
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
@@ -78,7 +76,6 @@ router.post(
       .withMessage('Password must be at least 8 characters'),
   ],
   async (req, res, next) => {
-    // Validate request body
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -88,7 +85,7 @@ router.post(
       const { username, email, password } = req.body;
 
       // Create new user
-      const user = await db.User.create({ username, email, password });
+      await db.User.create({ username, email, password });
 
       res.status(201).json({ message: 'User registered successfully' });
     } catch (error) {
